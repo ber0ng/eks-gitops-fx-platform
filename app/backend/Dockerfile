@@ -13,7 +13,9 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 # RDS CA bundle so the app can verify the database's TLS certificate
-ADD --chmod=644 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /app/certs/rds-ca.pem
+# (chmod in a RUN step: ADD --chmod would also apply 644 to /app/certs, making it untraversable)
+ADD https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /app/certs/rds-ca.pem
+RUN chmod 755 /app/certs && chmod 644 /app/certs/rds-ca.pem
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
