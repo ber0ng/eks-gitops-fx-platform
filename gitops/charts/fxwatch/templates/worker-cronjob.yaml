@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fxwatch-worker
+  labels:
+    {{- include "fxwatch.labels" . | nindent 4 }}
+    app.kubernetes.io/name: fxwatch-worker
+spec:
+  schedule: {{ .Values.worker.schedule | quote }}
+  timeZone: {{ .Values.worker.timeZone | quote }}
+  concurrencyPolicy: Forbid          # never run two at once
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2                # retry up to 2 times (safe: upserts are idempotent)
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            {{- include "fxwatch.labels" . | nindent 12 }}
+            app.kubernetes.io/name: fxwatch-worker
+        spec:
+          restartPolicy: Never
+          securityContext:
+            {{- include "fxwatch.podSecurity" . | nindent 12 }}
+          containers:
+            - name: worker
+              image: {{ include "fxwatch.image" (list . "fxwatch-worker") }}
+              envFrom:
+                - configMapRef:
+                    name: fxwatch-config
+                - secretRef:
+                    name: {{ .Values.db.existingSecret }}
+              resources:
+                {{- toYaml .Values.worker.resources | nindent 16 }}
+              securityContext:
+                {{- include "fxwatch.containerSecurity" . | nindent 16 }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

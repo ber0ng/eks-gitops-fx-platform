@@ -1,0 +1,6 @@
+apiVersion: v2
+name: fxwatch
+description: FX rates API, worker and in-cluster cache
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

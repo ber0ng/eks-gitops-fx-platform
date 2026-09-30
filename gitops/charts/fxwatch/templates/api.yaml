@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fxwatch-api
+  labels:
+    {{- include "fxwatch.labels" . | nindent 4 }}
+    app.kubernetes.io/name: fxwatch-api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fxwatch-api
+  template:
+    metadata:
+      labels:
+        {{- include "fxwatch.labels" . | nindent 8 }}
+        app.kubernetes.io/name: fxwatch-api
+      annotations:
+        # Restart pods automatically when the config changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        {{- include "fxwatch.podSecurity" . | nindent 8 }}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: {{ include "fxwatch.image" (list . "fxwatch-api") }}
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: fxwatch-config
+            - secretRef:
+                name: {{ .Values.db.existingSecret }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          lifecycle:
+            preStop:
+              # Give the Service time to stop routing here before shutdown
+              exec:
+                command: ["sleep", "5"]
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            {{- include "fxwatch.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fxwatch-api
+  labels:
+    {{- include "fxwatch.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: fxwatch-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

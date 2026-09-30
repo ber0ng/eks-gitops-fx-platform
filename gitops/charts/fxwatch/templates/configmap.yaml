@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fxwatch-config
+  labels:
+    {{- include "fxwatch.labels" . | nindent 4 }}
+data:
+  PGHOST: {{ required "db.host is required" .Values.db.host | quote }}
+  PGPORT: {{ .Values.db.port | quote }}
+  PGDATABASE: {{ .Values.db.name | quote }}
+  PGSSLROOTCERT: "/app/certs/rds-ca.pem"
+  REDIS_URL: "redis://fxwatch-redis:6379"
+  FX_API_URL: {{ .Values.fx.apiUrl | quote }}
+  FX_PAIRS: {{ .Values.fx.pairs | quote }}
+  CACHE_TTL_SECONDS: {{ .Values.fx.cacheTtlSeconds | quote }}

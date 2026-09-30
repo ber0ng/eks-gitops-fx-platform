@@ -1,0 +1,43 @@
+image:
+  registry: ""
+  tag: ""
+
+db:
+  host: ""
+  port: 5432
+  name: fxwatch
+  existingSecret: fxwatch-db
+
+fx:
+  apiUrl: https://api.frankfurter.dev/v1
+  pairs: EURUSD, GBPUSD, USDJPY, AUDUSD, USDPHP
+  cacheTtlSeconds: 3600
+
+api:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+worker:
+  schedule: "0 */6 * * *" # every 6 hours
+  timeZone: UTC
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      memory: 192Mi
+
+redis:
+  image: redis:7-alpine
+  maxMemory: 100mb
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 160Mi
