@@ -1,0 +1,24 @@
+{
+  "name": "fxwatch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev:api": "tsx watch src/api.ts",
+    "dev:worker": "tsx src/worker.ts",
+    "start:api": "node dist/api.js",
+    "start:worker": "node dist/worker.js"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "ioredis": "^5.4.0",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
