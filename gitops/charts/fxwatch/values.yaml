@@ -7,6 +7,14 @@ db:
   port: 5432
   name: fxwatch
   existingSecret: fxwatch-db
+  secretArn: "" # RDS master user secret in secrets manager
+
+aws:
+  region: ap-southeast-2
+
+externalSecrets:
+  enabled: true
+  refreshInterval: 1h
 
 fx:
   apiUrl: https://api.frankfurter.dev/v1
