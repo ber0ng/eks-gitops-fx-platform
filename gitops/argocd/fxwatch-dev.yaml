@@ -9,13 +9,14 @@ metadata:
 spec:
   project: default
 
-  source: https://github.com/ber0ng/eks-gitops-fx-platform.git
-  targetRevision: main
-  path: gitops/charts/fxwatch
-  helm:
-    releaseName: fxwatch
-    valueFiles:
-      - ../../envs/dev/values.yaml
+  source:
+    repoURL: https://github.com/ber0ng/eks-gitops-fx-platform.git
+    targetRevision: main
+    path: gitops/charts/fxwatch
+    helm:
+      releaseName: fxwatch
+      valueFiles:
+        - ../../envs/dev/values.yaml
 
   destination:
     server: https://kubernetes.default.svc # same cluster
