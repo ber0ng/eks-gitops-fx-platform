@@ -28,3 +28,18 @@ module "ecr" {
   repository_name = ["fxwatch-api", "fxwatch-worker", "fxwatch-frontend"]
   force_delete    = true # dev only
 }
+
+module "rds" {
+  source = "../../modules/rds"
+
+  name                       = local.name
+  vpc_id                     = module.network.vpc_id
+  db_subnet_group_name       = module.network.database_subnet_group_name
+  allowed_security_group_ids = [module.eks.node_security_group_id]
+
+  # Dev only
+  deletion_protection   = false
+  skip_final_snapshot   = true
+  backup_retention_days = 1
+}
+
