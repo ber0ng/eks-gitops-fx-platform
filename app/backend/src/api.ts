@@ -24,60 +24,65 @@ app.get("/ready", async (_req, reply) => {
     }
 });
 
-app.get("/rates", async () => {
-    const { rows } = await pool.query<Row>(`
+// Public api
+app.register(
+    async (api) => {
+        api.get("/rates", async () => {
+            const { rows } = await pool.query<Row>(`
         SELECT DISTINCT ON (pair) pair, rate, rate_date::text AS date
         FROM fx_rates
         ORDER BY pair, rate_date DESC
-    `);
-    return rows.map(toRate);
-});
+      `);
+            return rows.map(toRate);
+        });
 
-app.get<{ Params: { pair: string } }>("/rates/:pair", async (req, reply) => {
-    const pair = req.params.pair.toUpperCase();
-    if (!PAIR_RE.test(pair)) {
-        return reply.code(400).send({ error: "pair must look like EURUSD" });
-    }
+        api.get<{ Params: { pair: string } }>("/rates/:pair", async (req, reply) => {
+            const pair = req.params.pair.toUpperCase();
+            if (!PAIR_RE.test(pair)) {
+                return reply.code(400).send({ error: "pair must look like EURUSD" });
+            }
 
-    const cached = await redis.get(rateKey(pair)).catch(() => null);
-    if (cached) return { ...JSON.parse(cached), source: "cache" };
+            const cached = await redis.get(rateKey(pair)).catch(() => null);
+            if (cached) return { ...JSON.parse(cached), source: "cache" };
 
-    const { rows } = await pool.query<Row>(`
-       SELECT pair, rate, rate_date::text AS date
-       FROM fx_rates WHERE pair = $1
-       ORDER BY rate_date DESC LIMIT 1`,
-        [pair],
-    );
-    if (rows.length === 0) {
-        return reply.code(404).send({ error: `no rates for ${pair}` });
-    }
+            const { rows } = await pool.query<Row>(
+                `SELECT pair, rate, rate_date::text AS date
+         FROM fx_rates WHERE pair = $1
+         ORDER BY rate_date DESC LIMIT 1`,
+                [pair],
+            );
+            if (rows.length === 0) {
+                return reply.code(404).send({ error: `no rates for ${pair}` });
+            }
 
-    const rate = toRate(rows[0]);
-    await redis
-        .set(rateKey(pair), JSON.stringify(rate), "EX", config.cacheTtlSeconds)
-        .catch(() => { });
-    return { ...rate, source: "db" };
-});
+            const rate = toRate(rows[0]);
+            await redis
+                .set(rateKey(pair), JSON.stringify(rate), "EX", config.cacheTtlSeconds)
+                .catch(() => { });
+            return { ...rate, source: "db" };
+        });
 
-app.get<{ Params: { pair: string }; Querystring: { days?: string } }>(
-    "/history/:pair",
-    async (req, reply) => {
-        const pair = req.params.pair.toUpperCase();
-        if (!PAIR_RE.test(pair)) {
-            return reply.code(400).send({ error: "pair must look like EURUSD " });
-        }
+        api.get<{ Params: { pair: string }; Querystring: { days?: string } }>(
+            "/history/:pair",
+            async (req, reply) => {
+                const pair = req.params.pair.toUpperCase();
+                if (!PAIR_RE.test(pair)) {
+                    return reply.code(400).send({ error: "pair must look like EURUSD" });
+                }
+                const days = Math.min(Math.max(Number(req.query.days ?? 30) || 30, 1), 365);
 
-        const days = Math.min(Math.max(Number(req.query.days ?? 30) || 30, 1), 365);
-
-        const { rows } = await pool.query<Row>(
-            `SELECT pair, rate, rate_date::text AS date
-            FROM fx_rates
-            WHERE pair = $1 AND rate_date >= CURRENT_DATE - $2::int
-            ORDER BY rate_date`,
-            [pair, days],
+                const { rows } = await pool.query<Row>(
+                    `SELECT pair, rate, rate_date::text AS date
+           FROM fx_rates
+           WHERE pair = $1 AND rate_date >= CURRENT_DATE - $2::int
+           ORDER BY rate_date`,
+                    [pair, days],
+                );
+                return rows.map(toRate);
+            },
         );
-        return rows.map(toRate);
-    }
+    },
+    { prefix: "/api" },
 );
 
 // Graceful shutdown: Kubernetes sends SIGTERM before killing the pod
