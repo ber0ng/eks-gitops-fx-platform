@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fxwatch-frontend
+  labels:
+    {{- include "fxwatch.labels" . | nindent 4 }}
+    app.kubernetes.io/name: fxwatch-frontend
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fxwatch-frontend
+  template:
+    metadata:
+      labels:
+        {{- include "fxwatch.labels" . | nindent 8 }}
+        app.kubernetes.io/name: fxwatch-frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101      # "nginx" user in nginx-unprivileged
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: {{ include "fxwatch.image" (list . "fxwatch-frontend") }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          securityContext:
+            {{- include "fxwatch.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            # nginx needs somewhere writable for its pid and temp files
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fxwatch-frontend
+  labels:
+    {{- include "fxwatch.labels" . | nindent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+spec:
+  selector:
+    app.kubernetes.io/name: fxwatch-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

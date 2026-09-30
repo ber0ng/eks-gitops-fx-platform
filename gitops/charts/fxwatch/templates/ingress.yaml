@@ -9,17 +9,23 @@ metadata:
     alb.ingress.kubernetes.io/scheme: internet-facing
     # Send traffic straight to pod IPs (skips the extra node hop)
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.io/healtcheck-path: /ready
 spec:
   ingressClassName: alb
   rules:
     - http:
         paths:
-          - path: /
+          - path: /api
             pathType: Prefix
             backend:
               service:
                 name: fxwatch-api
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fxwatch-frontend
                 port:
                   name: http
 {{- end }}
