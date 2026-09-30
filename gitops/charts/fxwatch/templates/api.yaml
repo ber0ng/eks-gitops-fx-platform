@@ -5,6 +5,9 @@ metadata:
   labels:
     {{- include "fxwatch.labels" . | nindent 4 }}
     app.kubernetes.io/name: fxwatch-api
+  annotations:
+    # Rolling restart when the db secret changes (e.g., after secret rotation)
+    secret.reloader.stakater.com/reload: {{ .Values.db.existingSecret | quote }}
 spec:
   replicas: {{ .Values.api.replicas }}
   selector:
