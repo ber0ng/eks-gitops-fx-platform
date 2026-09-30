@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fxwatch-dev
+  namespace: argocd
+  finalizers:
+    # if this app is deleted, also delete what it deployed
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source: https://github.com/ber0ng/eks-gitops-fx-platform.git
+  targetRevision: main
+  path: gitops/charts/fxwatch
+  helm:
+    releaseName: fxwatch
+    valueFiles:
+      - ../../envs/dev/values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc # same cluster
+    namespace: fxwatch
+
+  syncPolicy:
+    automated:
+      prune: true # delete things that were removed from git
+      selfHeal: true # undo manual changes made in the cluster
+    syncOptions:
+      - CreateNamespace=true
