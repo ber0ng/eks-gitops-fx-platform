@@ -49,3 +49,6 @@ redis:
       memory: 64Mi
     limits:
       memory: 160Mi
+
+ingress:
+  enabled: false

@@ -1,0 +1,25 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fxwatch
+  labels:
+    {{- include "fxwatch.labels" . | nindent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # Send traffic straight to pod IPs (skips the extra node hop)
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.io/healtcheck-path: /ready
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fxwatch-api
+                port:
+                  name: http
+{{- end }}

@@ -8,3 +8,6 @@ db:
 
 api:
   replicas: 2
+
+ingress:
+  enabled: true
