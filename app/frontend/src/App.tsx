@@ -52,7 +52,7 @@ export default function App() {
         <h1>fxwatch</h1>
         <p className="muted">
           Daily reference rates from the European Central Bank · deployed by
-          GitHub Actions
+          GitHub Actions AGAIN
         </p>
       </header>
 
