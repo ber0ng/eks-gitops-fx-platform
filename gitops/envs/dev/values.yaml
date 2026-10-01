@@ -1,6 +1,6 @@
 image:
   registry: 835107812500.dkr.ecr.ap-southeast-2.amazonaws.com
-  backendTag: "ba818a0"
+  backendTag: "d2c1dbe"
   frontendTag: "f368b1e"
 db:
   host: fxwatch-dev.cbia0y08ko3o.ap-southeast-2.rds.amazonaws.com
