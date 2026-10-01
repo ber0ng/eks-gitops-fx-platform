@@ -1,0 +1,88 @@
+{
+  "title": "fxwatch",
+  "uid": "fxwatch",
+  "schemaVersion": 39,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requests per second by route",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (route) (rate(http_request_duration_seconds_count{namespace=\"fxwatch\"}[5m]))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Error rate (%)",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent" } },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(http_request_duration_seconds_count{namespace=\"fxwatch\", status_code=~\"5..\"}[5m])) / sum(rate(http_request_duration_seconds_count{namespace=\"fxwatch\"}[5m]))",
+          "legendFormat": "5xx %"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 latency by route",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{namespace=\"fxwatch\"}[5m])))",
+          "legendFormat": "{{route}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Worker runs (kept history)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(kube_job_status_succeeded{namespace=\"fxwatch\"})",
+          "legendFormat": "succeeded"
+        },
+        {
+          "expr": "sum(kube_job_status_failed{namespace=\"fxwatch\"})",
+          "legendFormat": "failed"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU by pod (cores)",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"fxwatch\", container!=\"\"}[5m]))",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory by pod",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [
+        {
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"fxwatch\", container!=\"\"})",
+          "legendFormat": "{{pod}}"
+        }
+      ]
+    }
+  ]
+}

@@ -71,6 +71,9 @@ metadata:
   name: fxwatch-api
   labels:
     {{- include "fxwatch.labels" . | nindent 4 }}
+    app.kubernetes.io/name: fxwatch-api
+  annotations:
+    alb.ingress.kubernetes.io/healthcheck-path: /ready
 spec:
   selector:
     app.kubernetes.io/name: fxwatch-api

@@ -1,0 +1,39 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: fxwatch
+  labels:
+    {{- include "fxwatch.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: fxwatch
+      rules:
+        - alert: FxwatchApiDown
+          expr: sum(up{namespace="fxwatch", service="fxwatch-api"}) == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No fxwatch API pods are reachable"
+
+        - alert: FxwatchApiHighErrorRate
+          expr: |
+            sum(rate(http_request_duration_seconds_count{namespace="fxwatch", status_code=~"5.."}[5m]))
+              /
+            sum(rate(http_request_duration_seconds_count{namespace="fxwatch"}[5m]))
+              > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "More than 5% of fxwatch API requests are failing"
+
+        - alert: FxwatchWorkerFailed
+          expr: sum(kube_job_status_failed{namespace="fxwatch", job_name=~"fxwatch-worker.*"}) > 0
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "An fxwatch worker run failed"
+{{- end }}
