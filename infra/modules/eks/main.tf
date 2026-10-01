@@ -11,7 +11,24 @@ module "eks" {
   # Run kubectl from the local machine instead of the EKS control plane. This is useful for running kubectl commands from the local machine without having to SSH into the EKS control plane.
   endpoint_public_access = true
 
-  enable_cluster_creator_admin_permissions = true
+  enable_cluster_creator_admin_permissions = false
+
+  # same key and policy the module used for the creator entry, 
+  # so terraform sees it as the same resource, not a replacement
+
+  access_entries = {
+    cluster_creator = {
+      principal_arn = var.admin_principal_arn
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 
   addons = {
     vpc-cni = {

@@ -76,7 +76,9 @@ data "aws_iam_policy_document" "apply_trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["${local.subject}:ref:refs/heads/main"]
+      values = ["${local.subject}:ref:refs/heads/main",
+        "${local.subject}:environment:dev",
+      ]
     }
   }
 }
@@ -90,4 +92,59 @@ resource "aws_iam_role" "apply" {
 resource "aws_iam_role_policy_attachment" "apply_admin" {
   role       = aws_iam_role.apply.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# ECR push role: main branch only, push to fxwatch-* repos only
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_policy_document" "ecr_push_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.oidc_provider.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["${local.subject}:ref:refs/heads/main"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "ecr_push" {
+  statement {
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+  statement {
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:CompleteLayerUpload",
+      "ecr:DescribeImages",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
+    ]
+    resources = [
+      "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/fxwatch-*",
+    ]
+  }
+}
+
+resource "aws_iam_role" "ecr_push" {
+  name               = "fxwatch-gha-ecr-push"
+  assume_role_policy = data.aws_iam_policy_document.ecr_push_trust.json
+}
+
+resource "aws_iam_role_policy" "ecr_push" {
+  name   = "ecr-push"
+  role   = aws_iam_role.ecr_push.id
+  policy = data.aws_iam_policy_document.ecr_push.json
 }

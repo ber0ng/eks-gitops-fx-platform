@@ -52,3 +52,8 @@ variable "node_desired_size" {
   type        = number
   default     = 2
 }
+
+variable "admin_principal_arn" {
+  type        = string
+  description = "IAM User or role that gets cluster admin"
+}

@@ -15,11 +15,12 @@ module "network" {
 module "eks" {
   source = "../../modules/eks"
 
-  cluster_name       = local.name
-  kubernetes_version = var.kubernetes_version
-  vpc_id             = module.network.vpc_id
-  private_subnet_ids = module.network.private_subnet_ids
-  node_capacity_type = "SPOT"
+  cluster_name        = local.name
+  kubernetes_version  = var.kubernetes_version
+  vpc_id              = module.network.vpc_id
+  private_subnet_ids  = module.network.private_subnet_ids
+  node_capacity_type  = "SPOT"
+  admin_principal_arn = "arn:aws:iam::835107812500:user/veron"
 }
 
 module "ecr" {
