@@ -1,6 +1,7 @@
 image:
   registry: ""
-  tag: ""
+  backendTag: ""
+  frontendTag: ""
 
 db:
   host: ""

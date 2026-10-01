@@ -7,7 +7,8 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 {{- define "fxwatch.image" -}}
 {{- $ctx := index . 0 -}}
 {{- $repo := index . 1 -}}
-{{ required "image.registry is required" $ctx.Values.image.registry }}/{{ $repo }}:{{ required "image.tag is required" $ctx.Values.image.tag }}
+{{- $tag := index . 2 -}}
+{{ required "image.registry is required" $ctx.Values.image.registry }}/{{ $repo }}:{{ required (printf "image tag for %s is required" $repo) $tag }}
 {{- end }}
 
 {{/* Shared hardening for our Node containers (image user "node" = uid 1000) */}}

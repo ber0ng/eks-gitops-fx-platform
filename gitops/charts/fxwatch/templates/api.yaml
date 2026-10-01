@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: api
-          image: {{ include "fxwatch.image" (list . "fxwatch-api") }}
+          image: {{ include "fxwatch.image" (list . "fxwatch-api" .Values.image.backendTag) }}
           ports:
             - name: http
               containerPort: 3000

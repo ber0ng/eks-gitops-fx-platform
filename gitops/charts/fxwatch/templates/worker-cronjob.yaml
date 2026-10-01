@@ -26,7 +26,7 @@ spec:
             {{- include "fxwatch.podSecurity" . | nindent 12 }}
           containers:
             - name: worker
-              image: {{ include "fxwatch.image" (list . "fxwatch-worker") }}
+              image: {{ include "fxwatch.image" (list . "fxwatch-worker" .Values.image.backendTag) }}
               envFrom:
                 - configMapRef:
                     name: fxwatch-config
