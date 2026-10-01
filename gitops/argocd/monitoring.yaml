@@ -58,6 +58,18 @@ spec:
     server: https://kubernetes.default.svc
     namespace: monitoring
 
+  # the chart's admission jobs fill in the webhook tls cert after install.
+  # ignore that field, or argocd sees it as drift and re-syncs forever
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+
   syncPolicy:
     automated:
       prune: true
@@ -66,3 +78,4 @@ spec:
       - CreateNamespace=true
       # the charts crds are too big for a normal kubectl apply
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
