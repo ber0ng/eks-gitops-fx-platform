@@ -2,12 +2,40 @@ import Fastify from "fastify";
 import { config } from "./config.js";
 import { pool, ensureSchema } from "./db.js";
 import { redis, rateKey } from "./cache.js";
+import client from "prom-client";
 
 const app = Fastify({ logger: true });
 const PAIR_RE = /^[A-Z]{6}$/;
 
 type Row = { pair: string; rate: string; date: string };
 const toRate = (r: Row) => ({ pair: r.pair, rate: Number(r.rate), date: r.date });
+
+// Standard node.js process metrics: memory, CPU, event loop, lag, etc
+client.collectDefaultMetrics();
+const httpDuration = new client.Histogram({
+    name: "http_request_duration_seconds",
+    help: "HTTP request duration in seconds",
+    labelNames: ["method", "route", "status_code"],
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5],
+});
+
+const SKIP_ROUTES = new Set(["/metrics", "/health", "/ready"]);
+
+app.addHook("onResponse", async (req, reply) => {
+    // Use the route template (/api/rates/:pair), not the real url (/api/rates/USDPHP)
+    // so every pair shares one time series instead of creating a new one each
+    const route = req.routeOptions.url ?? "unmatched";
+    if (SKIP_ROUTES.has(route)) return;
+
+    httpDuration
+        .labels(req.method, route, String(reply.statusCode))
+        .observe(reply.elapsedTime / 1000);
+});
+
+app.get("/metrics", async (_req, reply) => {
+    reply.header("Content-Type", client.register.contentType);
+    return client.register.metrics();
+});
 
 // Liveness: is the process alive?
 app.get("/health", async () => ({ status: "ok" }));
