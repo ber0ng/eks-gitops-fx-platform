@@ -1,7 +1,7 @@
 image:
   registry: 835107812500.dkr.ecr.ap-southeast-2.amazonaws.com
   backendTag: "ba818a0"
-  frontendTag: "ba818a0"
+  frontendTag: "f368b1e"
 db:
   host: fxwatch-dev.cbia0y08ko3o.ap-southeast-2.rds.amazonaws.com
   secretArn: arn:aws:secretsmanager:ap-southeast-2:835107812500:secret:rds!db-9a2bd1ca-cb65-432c-a1db-bab0ce53336d-1IRnkl
