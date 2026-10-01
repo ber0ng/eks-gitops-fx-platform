@@ -1,0 +1,103 @@
+name: infra
+
+on:
+  pull_request:
+    paths: ["infra/envs/**", "infra/modules/**", ".github/workflows/infra.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/envs/**", "infra/modules/**", ".github/workflows/infra.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-dev
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+
+defaults:
+  run:
+    working-directory: infra/envs/dev
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.x"
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Format check
+        run: terraform fmt -check -recursive ../../
+      - name: Init
+        run: terraform init -input=false
+      - name: Validate
+        run: terraform validate -no-color
+      - name: Plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -input=false -no-color -detailed-exitcode > plan.txt 2>&1
+          code=$?
+          set -e
+          cat plan.txt
+          # 0 = no changes, 2 = changes, 1 = error
+          if [ "$code" -eq 1 ]; then exit 1; fi
+
+      - name: Comment plan on PR
+        if: always() && steps.plan.outcome != 'skipped'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let plan = fs.readFileSync('infra/envs/dev/plan.txt', 'utf8');
+            if (plan.length > 60000) plan = '...(truncated)\n' + plan.slice(-60000);
+            const body = [
+              '### Terraform plan: `envs/dev`',
+              '<details><summary>Show plan</summary>',
+              '',
+              '```',
+              plan,
+              '```',
+              '</details>',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.x"
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Init
+        run: terraform init -input=false
+      - name: Apply
+        run: terraform apply -input=false -auto-approve

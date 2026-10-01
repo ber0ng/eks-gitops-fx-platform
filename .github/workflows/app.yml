@@ -1,0 +1,138 @@
+name: app
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", "scripts/build-push.sh", ".github/workflows/app.yml"]
+  pull_request:
+    paths: ["app/**", "scripts/build-push.sh", ".github/workflows/app.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Work out which parts of the app changed
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'app/backend/**'
+            frontend:
+              - 'app/frontend/**'
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      tag: ${{ steps.push.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/backend/package-lock.json
+      - name: Install and type-check
+        working-directory: app/backend
+        run: npm ci && npm run build
+      - name: Configure AWS credentials
+        if: github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ECR_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and push images
+        id: push
+        if: github.event_name == 'push'
+        run: |
+          ./scripts/build-push.sh backend
+          echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      tag: ${{ steps.push.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/frontend/package-lock.json
+      - name: Install and build
+        working-directory: app/frontend
+        run: npm ci && npm run build
+      - name: Configure AWS credentials
+        if: github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ECR_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and push image
+        id: push
+        if: github.event_name == 'push'
+        run: |
+          ./scripts/build-push.sh frontend
+          echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+  # Commit the new tags to the GitOps values file; ArgoCD takes it from there
+  bump-tags:
+    needs: [changes, backend, frontend]
+    if: >-
+      github.event_name == 'push' && !cancelled() && !failure() &&
+      (needs.backend.result == 'success' || needs.frontend.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update image tags
+        env:
+          BACKEND_TAG: ${{ needs.backend.outputs.tag }}
+          FRONTEND_TAG: ${{ needs.frontend.outputs.tag }}
+        run: |
+          FILE=gitops/envs/dev/values.yaml
+          # style="double" keeps an all-digit SHA a string, not a number
+          if [ -n "$BACKEND_TAG" ]; then
+            yq -i '.image.backendTag = strenv(BACKEND_TAG) | .image.backendTag style="double"' "$FILE"
+          fi
+          if [ -n "$FRONTEND_TAG" ]; then
+            yq -i '.image.frontendTag = strenv(FRONTEND_TAG) | .image.frontendTag style="double"' "$FILE"
+          fi
+          git diff
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gitops/envs/dev/values.yaml
+          if git diff --cached --quiet; then
+            echo "No tag changes"
+            exit 0
+          fi
+          git commit -m "chore(gitops): bump dev image tags"
+          git pull --rebase
+          git push

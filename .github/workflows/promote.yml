@@ -1,0 +1,96 @@
+name: promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy to"
+        type: choice
+        options: [dev, prod]
+        required: true
+      component:
+        description: "What to deploy"
+        type: choice
+        options: [all, backend, frontend]
+        default: all
+      tag:
+        description: "Image tag (leave empty to use whatever dev is running now)"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    # Uses the GitHub environment's protection rules (e.g. required approval for prod)
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out which tags to deploy
+        id: tags
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          DEV=gitops/envs/dev/values.yaml
+          if [ -n "$INPUT_TAG" ]; then
+            # Only allow git-SHA-shaped tags, nothing else
+            if ! [[ "$INPUT_TAG" =~ ^[0-9a-f]{7,40}$ ]]; then
+              echo "::error::Tag must be a git commit SHA"
+              exit 1
+            fi
+            BACKEND="$INPUT_TAG"
+            FRONTEND="$INPUT_TAG"
+          else
+            BACKEND=$(yq '.image.backendTag' "$DEV")
+            FRONTEND=$(yq '.image.frontendTag' "$DEV")
+          fi
+          echo "backend=$BACKEND" >> "$GITHUB_OUTPUT"
+          echo "frontend=$FRONTEND" >> "$GITHUB_OUTPUT"
+          echo "Backend tag:  $BACKEND"
+          echo "Frontend tag: $FRONTEND"
+
+      - name: Update target environment
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+          COMPONENT: ${{ inputs.component }}
+          BACKEND_TAG: ${{ steps.tags.outputs.backend }}
+          FRONTEND_TAG: ${{ steps.tags.outputs.frontend }}
+        run: |
+          FILE="gitops/envs/${TARGET_ENV}/values.yaml"
+          if [ ! -f "$FILE" ]; then
+            echo "::error::$FILE does not exist. Is the ${TARGET_ENV} environment set up?"
+            exit 1
+          fi
+
+          if [ "$COMPONENT" = "all" ] || [ "$COMPONENT" = "backend" ]; then
+            yq -i '.image.backendTag = strenv(BACKEND_TAG) | .image.backendTag style="double"' "$FILE"
+          fi
+          if [ "$COMPONENT" = "all" ] || [ "$COMPONENT" = "frontend" ]; then
+            yq -i '.image.frontendTag = strenv(FRONTEND_TAG) | .image.frontendTag style="double"' "$FILE"
+          fi
+          git diff
+
+      - name: Commit and push
+        env:
+          TARGET_ENV: ${{ inputs.environment }}
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gitops/envs/
+          if git diff --cached --quiet; then
+            echo "Already deployed. Nothing to change."
+            exit 0
+          fi
+          git commit -m "chore(gitops): promote ${COMPONENT} to ${TARGET_ENV}"
+          git pull --rebase
+          git push
