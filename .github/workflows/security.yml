@@ -1,0 +1,86 @@
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 22 * * 0" # weekly, Monday 6am Manila time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Secrets committed anywhere in Git history
+  gitleaks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history, not just the latest commit
+
+      - name: Scan for secrets
+        run: |
+          # Run as the runner's user so git doesn't reject the repo as
+          # "dubious ownership" inside the container
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" \
+            zricethezav/gitleaks:latest detect \
+            --source /repo --redact -v \
+            --report-format sarif --report-path /repo/gitleaks.sarif
+
+      - name: Upload results
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+  # Vulnerabilities in our TypeScript code and in the workflows themselves
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # Misconfigurations in Terraform, Kubernetes manifests and Dockerfiles
+  trivy-config:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan IaC and Dockerfiles
+        run: |
+          docker run --rm -v "$PWD:/src" aquasec/trivy:latest config /src \
+            --severity HIGH,CRITICAL \
+            --format sarif --output /src/trivy-config.sarif \
+            --exit-code 0
+
+      - name: Upload results
+        if: always() && hashFiles('trivy-config.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-config
