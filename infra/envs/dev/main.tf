@@ -20,6 +20,7 @@ module "eks" {
   vpc_id              = module.network.vpc_id
   private_subnet_ids  = module.network.private_subnet_ids
   node_capacity_type  = "SPOT"
+  node_instance_type  = ["t3.large", "t3a.large"]
   admin_principal_arn = "arn:aws:iam::835107812500:user/veron"
 }
 
