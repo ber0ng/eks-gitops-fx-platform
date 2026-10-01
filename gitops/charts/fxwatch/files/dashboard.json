@@ -25,7 +25,7 @@
       "fieldConfig": { "defaults": { "unit": "percent" } },
       "targets": [
         {
-          "expr": "100 * sum(rate(http_request_duration_seconds_count{namespace=\"fxwatch\", status_code=~\"5..\"}[5m])) / sum(rate(http_request_duration_seconds_count{namespace=\"fxwatch\"}[5m]))",
+          "expr": "100 * (sum(rate(http_request_duration_seconds_count{namespace=\"fxwatch\", status_code=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_request_duration_seconds_count{namespace=\"fxwatch\"}[5m]))",
           "legendFormat": "5xx %"
         }
       ]
